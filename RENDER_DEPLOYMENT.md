@@ -5,7 +5,7 @@ Step-by-step guide to deploy your Expense Tracker backend on Render.
 ## 📋 Prerequisites
 
 - GitHub repository with your backend code
-- MongoDB Atlas database (or any MongoDB instance)
+- Firebase project with Firestore enabled
 - Render account (free tier available)
 
 ## 🔧 Deployment Steps
@@ -40,17 +40,27 @@ Add these in Render dashboard under "Environment":
 #### Required Variables:
 ```env
 NODE_ENV=production
-MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/expense-tracker
 JWT_SECRET=your-super-secret-jwt-key-change-this
-FRONTEND_URL=https://your-frontend-app.vercel.app
+FRONTEND_URL=https://ezspend.vercel.app
+FIREBASE_PROJECT_ID=expense-tracker-7ca1a
+```
+
+#### Firebase Authentication (Choose one method):
+
+**Method 1: Service Account JSON (Recommended)**
+```env
+FIREBASE_SERVICE_ACCOUNT={"type":"service_account","project_id":"expense-tracker-7ca1a",...}
+```
+
+**Method 2: Individual Keys**
+```env
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nyour-key\n-----END PRIVATE KEY-----\n"
+FIREBASE_CLIENT_EMAIL=your-email@expense-tracker-7ca1a.iam.gserviceaccount.com
 ```
 
 #### Optional Variables:
 ```env
 GEMINI_API_KEY=your-gemini-api-key
-FIREBASE_PROJECT_ID=your-project-id
-FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nyour-key\n-----END PRIVATE KEY-----\n"
-FIREBASE_CLIENT_EMAIL=your-email@project.iam.gserviceaccount.com
 ```
 
 ### Step 5: Deploy
@@ -99,9 +109,10 @@ Render automatically deploys when you push to your main branch:
 - Update `FRONTEND_URL` environment variable
 - Ensure CORS middleware allows your frontend domain
 
-#### Database Connection
-- Verify MongoDB Atlas allows connections from anywhere (0.0.0.0/0)
-- Check MongoDB URI format and credentials
+#### Firebase Connection
+- Verify Firebase service account credentials are correct
+- Check Firebase project ID matches your project
+- Ensure Firestore is enabled in your Firebase project
 
 ### Debugging Commands:
 ```bash
@@ -130,7 +141,7 @@ curl https://your-service-name.onrender.com/api/health
 
 1. **Environment Variables**: Never commit secrets to Git
 2. **JWT Secret**: Use a strong, unique secret
-3. **MongoDB**: Use MongoDB Atlas with proper authentication
+3. **Firebase**: Use service account with minimal required permissions
 4. **CORS**: Only allow your frontend domain
 5. **Rate Limiting**: Already configured in your app
 
