@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: expense-tracker-api
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+    # Environment variables to be set in Render dashboard:
+    # MONGODB_URI - Your MongoDB connection string
+    # JWT_SECRET - Your JWT secret key
+    # FRONTEND_URL - Your frontend URL (e.g., https://expense-tracker.vercel.app)
+    # GEMINI_API_KEY - Your Gemini API key (optional)
+    # FIREBASE_PROJECT_ID - Firebase project ID (if using Firestore)
+    # FIREBASE_PRIVATE_KEY - Firebase private key (if using Firestore)
+    # FIREBASE_CLIENT_EMAIL - Firebase client email (if using Firestore)
