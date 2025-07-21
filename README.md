@@ -148,7 +148,7 @@ FIREBASE_CLIENT_EMAIL=your-client-email
 ## 📦 Key Dependencies
 
 - `express` - Web framework
-- `mongoose` - MongoDB ODM
+- `firebase-admin` - Firebase Admin SDK for Firestore
 - `jsonwebtoken` - JWT implementation
 - `bcryptjs` - Password hashing
 - `joi` - Data validation
