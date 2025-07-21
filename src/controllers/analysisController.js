@@ -36,6 +36,35 @@ export const getWeeklyAnalysis = asyncHandler(async (req, res) => {
     console.log('✅ Found existing analysis:', analysis);
   }
 
+  // Ensure analysis has all required fields
+  if (!analysis) {
+    console.log('❌ Analysis is null, creating empty analysis');
+    analysis = {
+      weekStartDate: weekStart,
+      weekEndDate: weekEnd,
+      totalAmount: 0,
+      totalExpenses: 0,
+      averageDailySpend: 0,
+      categoryBreakdown: [],
+      dailyTotals: [],
+      topExpenses: [],
+      insights: {}
+    };
+  }
+
+  // Ensure topExpenses exists
+  if (!analysis.topExpenses) {
+    console.log('⚠️ topExpenses missing, adding empty array');
+    analysis.topExpenses = [];
+  }
+
+  console.log('📊 Final analysis data:', {
+    hasTopExpenses: !!analysis.topExpenses,
+    topExpensesLength: analysis.topExpenses?.length || 0,
+    totalAmount: analysis.totalAmount,
+    totalExpenses: analysis.totalExpenses
+  });
+
   res.status(200).json({
     success: true,
     data: analysis
@@ -209,12 +238,20 @@ const createWeeklyAnalysis = async (weekStart, weekEnd) => {
     insights
   };
   
+  console.log('💾 Saving analysis data:', analysisData);
+
   const analysis = await WeeklyAnalysis.findOneAndUpdate(
     { weekStartDate: weekStart },
     analysisData,
     { upsert: true, new: true }
   );
-  
+
+  console.log('✅ Analysis saved successfully:', {
+    id: analysis?.id,
+    hasTopExpenses: !!analysis?.topExpenses,
+    topExpensesCount: analysis?.topExpenses?.length || 0
+  });
+
   return analysis;
 };
 
