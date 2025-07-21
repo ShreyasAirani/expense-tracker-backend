@@ -34,7 +34,28 @@ const initializeFirestore = () => {
         }
       }
 
-      // Try service account file if env variable failed
+      // Try individual environment variables if JSON failed
+      if (!initialized && process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL) {
+        try {
+          const serviceAccount = {
+            type: 'service_account',
+            project_id: process.env.FIREBASE_PROJECT_ID,
+            private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+            client_email: process.env.FIREBASE_CLIENT_EMAIL
+          };
+
+          admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount),
+            projectId: process.env.FIREBASE_PROJECT_ID
+          });
+          console.log('🔥 Using service account from individual environment variables');
+          initialized = true;
+        } catch (envError) {
+          console.log('⚠️ Failed to use individual environment variables:', envError.message);
+        }
+      }
+
+      // Try service account file if env variables failed
       if (!initialized) {
         try {
           const serviceAccountPath = join(__dirname, 'serviceAccountKey.json');
@@ -53,7 +74,10 @@ const initializeFirestore = () => {
 
       // Fallback to project ID only (for emulator or default credentials)
       if (!initialized) {
-        console.log('📝 Using project ID only (no service account)');
+        if (process.env.NODE_ENV === 'production') {
+          throw new Error('Firebase service account credentials are required for production. Please set FIREBASE_SERVICE_ACCOUNT or FIREBASE_PRIVATE_KEY + FIREBASE_CLIENT_EMAIL environment variables.');
+        }
+        console.log('📝 Using project ID only (development mode)');
         admin.initializeApp({
           projectId: process.env.FIREBASE_PROJECT_ID || 'expense-tracker-7ca1a'
         });
