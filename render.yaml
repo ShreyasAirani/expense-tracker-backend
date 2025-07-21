@@ -5,17 +5,3 @@ services:
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /api/health
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: PORT
-        value: 5000
-    # Environment variables to be set in Render dashboard:
-    # JWT_SECRET - Your JWT secret key
-    # FRONTEND_URL - https://ezspend.vercel.app
-    # GEMINI_API_KEY - Your Gemini API key (optional)
-    # FIREBASE_PROJECT_ID - expense-tracker-7ca1a
-    # FIREBASE_SERVICE_ACCOUNT - Your complete Firebase service account JSON (as string)
-    # Or alternatively:
-    # FIREBASE_PRIVATE_KEY - Firebase private key
-    # FIREBASE_CLIENT_EMAIL - Firebase client email
