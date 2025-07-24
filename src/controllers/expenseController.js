@@ -33,10 +33,18 @@ const expenseValidationSchema = Joi.object({
 
 // @desc    Get all expenses
 // @route   GET /api/expenses
-// @access  Public
+// @access  Private
 export const getExpenses = asyncHandler(async (req, res) => {
   const { startDate, endDate, category, limit = 50, page = 1, sortBy = 'date', sortOrder = 'desc' } = req.query;
-  
+
+  // Ensure user is authenticated
+  if (!req.userId) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required'
+    });
+  }
+
   // Build filters for Firestore
   const filters = {
     startDate,
@@ -48,7 +56,8 @@ export const getExpenses = asyncHandler(async (req, res) => {
     offset: (parseInt(page) - 1) * parseInt(limit)
   };
 
-  const expenses = await Expense.find(filters, req.userId || null);
+  // CRITICAL: Always filter by authenticated user's ID
+  const expenses = await Expense.find(filters, req.userId);
   const total = await Expense.countDocuments(filters);
   
   res.status(200).json({
@@ -65,14 +74,30 @@ export const getExpenses = asyncHandler(async (req, res) => {
 
 // @desc    Get single expense
 // @route   GET /api/expenses/:id
-// @access  Public
+// @access  Private
 export const getExpense = asyncHandler(async (req, res) => {
+  // Ensure user is authenticated
+  if (!req.userId) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required'
+    });
+  }
+
   const expense = await Expense.findById(req.params.id);
-  
+
   if (!expense) {
     return res.status(404).json({
       success: false,
       message: 'Expense not found'
+    });
+  }
+
+  // CRITICAL: Verify expense belongs to authenticated user
+  if (expense.userId !== req.userId) {
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied: You can only view your own expenses'
     });
   }
   
@@ -84,11 +109,19 @@ export const getExpense = asyncHandler(async (req, res) => {
 
 // @desc    Create new expense
 // @route   POST /api/expenses
-// @access  Public
+// @access  Private
 export const createExpense = asyncHandler(async (req, res) => {
+  // Ensure user is authenticated
+  if (!req.userId) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required'
+    });
+  }
+
   // Validate input
   const { error, value } = expenseValidationSchema.validate(req.body);
-  
+
   if (error) {
     console.log('Validation error details:', error.details);
     console.log('Received data:', req.body);
@@ -102,8 +135,9 @@ export const createExpense = asyncHandler(async (req, res) => {
       }))
     });
   }
-  
-  const expense = await Expense.create(value, req.userId || null);
+
+  // CRITICAL: Always associate expense with authenticated user
+  const expense = await Expense.create(value, req.userId);
   
   res.status(201).json({
     success: true,
@@ -114,11 +148,37 @@ export const createExpense = asyncHandler(async (req, res) => {
 
 // @desc    Update expense
 // @route   PUT /api/expenses/:id
-// @access  Public
+// @access  Private
 export const updateExpense = asyncHandler(async (req, res) => {
+  // Ensure user is authenticated
+  if (!req.userId) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required'
+    });
+  }
+
+  // First, check if expense exists and belongs to user
+  const existingExpense = await Expense.findById(req.params.id);
+
+  if (!existingExpense) {
+    return res.status(404).json({
+      success: false,
+      message: 'Expense not found'
+    });
+  }
+
+  // CRITICAL: Verify expense belongs to authenticated user
+  if (existingExpense.userId !== req.userId) {
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied: You can only update your own expenses'
+    });
+  }
+
   // Validate input
   const { error, value } = expenseValidationSchema.validate(req.body);
-  
+
   if (error) {
     console.log('Validation error details:', error.details);
     console.log('Received data:', req.body);
@@ -132,7 +192,7 @@ export const updateExpense = asyncHandler(async (req, res) => {
       }))
     });
   }
-  
+
   const expense = await Expense.findByIdAndUpdate(
     req.params.id,
     value,
@@ -141,7 +201,7 @@ export const updateExpense = asyncHandler(async (req, res) => {
       runValidators: true
     }
   );
-  
+
   if (!expense) {
     return res.status(404).json({
       success: false,
@@ -158,8 +218,16 @@ export const updateExpense = asyncHandler(async (req, res) => {
 
 // @desc    Delete expense
 // @route   DELETE /api/expenses/:id
-// @access  Public
+// @access  Private
 export const deleteExpense = asyncHandler(async (req, res) => {
+  // Ensure user is authenticated
+  if (!req.userId) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required'
+    });
+  }
+
   const expenseId = req.params.id;
 
   if (!expenseId || expenseId === 'undefined') {
@@ -178,6 +246,14 @@ export const deleteExpense = asyncHandler(async (req, res) => {
     });
   }
 
+  // CRITICAL: Verify expense belongs to authenticated user
+  if (expense.userId !== req.userId) {
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied: You can only delete your own expenses'
+    });
+  }
+
   // Use Firestore delete method
   await Expense.findByIdAndDelete(expenseId);
   
@@ -189,8 +265,16 @@ export const deleteExpense = asyncHandler(async (req, res) => {
 
 // @desc    Get expenses grouped by date
 // @route   GET /api/expenses/grouped-by-date
-// @access  Public
+// @access  Private
 export const getExpensesGroupedByDate = asyncHandler(async (req, res) => {
+  // Ensure user is authenticated
+  if (!req.userId) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required'
+    });
+  }
+
   const { startDate, endDate, limit = 100 } = req.query;
 
   // Build filters
@@ -202,8 +286,8 @@ export const getExpensesGroupedByDate = asyncHandler(async (req, res) => {
     limit: parseInt(limit)
   };
 
-  // Use the new Firestore method for grouping
-  const groupedExpenses = await Expense.getExpensesGroupedByDate(filters, req.userId || null);
+  // CRITICAL: Always filter by authenticated user's ID
+  const groupedExpenses = await Expense.getExpensesGroupedByDate(filters, req.userId);
 
   res.status(200).json({
     success: true,

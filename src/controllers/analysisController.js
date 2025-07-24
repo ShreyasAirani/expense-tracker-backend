@@ -4,9 +4,18 @@ import moment from 'moment';
 
 // @desc    Get weekly analysis
 // @route   GET /api/analysis/weekly
-// @access  Public
+// @access  Private
 export const getWeeklyAnalysis = asyncHandler(async (req, res) => {
+  // Ensure user is authenticated
+  if (!req.userId) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required'
+    });
+  }
+
   console.log('🔍 GET /api/analysis/weekly called with query:', req.query);
+  console.log('👤 User ID:', req.userId);
 
   const { startDate } = req.query;
 
@@ -29,8 +38,8 @@ export const getWeeklyAnalysis = asyncHandler(async (req, res) => {
 
   if (!analysis) {
     console.log('❌ No existing analysis found, generating new one...');
-    // Generate new analysis
-    analysis = await createWeeklyAnalysis(weekStart, weekEnd);
+    // Generate new analysis with user ID
+    analysis = await createWeeklyAnalysis(weekStart, weekEnd, req.userId);
     console.log('✅ New analysis created:', analysis);
   } else {
     console.log('✅ Found existing analysis:', analysis);
@@ -97,20 +106,24 @@ export const generateWeeklyAnalysis = asyncHandler(async (req, res) => {
 });
 
 // Helper function to create weekly analysis
-const createWeeklyAnalysis = async (weekStart, weekEnd) => {
-  console.log('🏗️ Creating weekly analysis for range:', { weekStart, weekEnd });
+const createWeeklyAnalysis = async (weekStart, weekEnd, userId) => {
+  console.log('🏗️ Creating weekly analysis for range:', { weekStart, weekEnd, userId });
 
-  // Get all expenses for the week
+  if (!userId) {
+    throw new Error('User ID is required for creating weekly analysis');
+  }
+
+  // Get all expenses for the week for the specific user
   console.log('📊 Fetching expenses from database...');
   console.log('📅 Date range for query:', { weekStart, weekEnd });
 
-  // Get all expenses without user filtering for now
+  // CRITICAL: Always filter by user ID
   const expenses = await Expense.find({
     startDate: weekStart,
     endDate: weekEnd,
     sortBy: 'date',
     sortOrder: 'desc'
-  });
+  }, userId);
 
   console.log('💰 Found expenses:', expenses.length);
   console.log('💰 Expense details:', expenses.map(e => ({

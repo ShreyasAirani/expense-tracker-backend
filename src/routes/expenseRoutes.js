@@ -12,11 +12,10 @@ import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Temporarily disable authentication for testing
-// TODO: Re-enable authentication after implementing frontend auth
-// router.use(authenticateToken);
+// Apply authentication to all expense routes
+router.use(authenticateToken);
 
-// Routes (temporarily unprotected for testing)
+// Protected routes (require authentication)
 router.route('/')
   .get(getExpenses)
   .post(createExpense);

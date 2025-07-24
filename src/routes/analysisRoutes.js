@@ -4,8 +4,12 @@ import {
   generateWeeklyAnalysis,
   getRecentAnalyses
 } from '../controllers/analysisController.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// Apply authentication to all analysis routes
+router.use(authenticateToken);
 
 // Routes
 router.route('/weekly')
