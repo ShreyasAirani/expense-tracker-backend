@@ -2,29 +2,17 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { WeeklyAnalysis } from '../models/index.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 
-// Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// @desc    Get AI-powered cost-cutting suggestions
-// @route   POST /api/ai/suggestions
-// @access  Public
 export const getAISuggestions = asyncHandler(async (req, res) => {
-  console.log('🤖 AI Suggestions request received:', {
-    body: req.body,
-    hasAnalysisData: !!req.body.analysisData
-  });
-
   const { analysisData } = req.body;
 
   if (!analysisData) {
-    console.log('❌ No analysis data provided');
     return res.status(400).json({
       success: false,
       message: 'Analysis data is required'
     });
   }
-
-  console.log('📊 Analysis data received:', analysisData);
   
   if (!process.env.GEMINI_API_KEY) {
     return res.status(500).json({
@@ -34,20 +22,14 @@ export const getAISuggestions = asyncHandler(async (req, res) => {
   }
   
   try {
-    console.log('🤖 Initializing Gemini AI model...');
     const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
     // Create a detailed prompt for Gemini
     const prompt = createPromptFromAnalysis(analysisData);
-    console.log('📝 Generated prompt for AI:', prompt.substring(0, 200) + '...');
-
-    console.log('🚀 Sending request to Gemini AI...');
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const suggestions = response.text();
 
-    console.log('✅ Received AI response:', suggestions.substring(0, 200) + '...');
-    
     // Parse suggestions into array
     const suggestionsList = parseSuggestions(suggestions);
     
@@ -82,7 +64,6 @@ export const getAISuggestions = asyncHandler(async (req, res) => {
     });
 
     // Provide fallback suggestions if AI fails
-    console.log('🔄 Providing fallback suggestions...');
     return sendFallbackSuggestions(res, analysisData);
   }
 });
@@ -165,9 +146,6 @@ const parseSuggestions = (aiResponse) => {
   return suggestions.length > 0 ? suggestions : [aiResponse.trim()];
 };
 
-// @desc    Get AI suggestions for a specific weekly analysis
-// @route   GET /api/ai/suggestions/:weekStartDate
-// @access  Public
 export const getStoredAISuggestions = asyncHandler(async (req, res) => {
   const { weekStartDate } = req.params;
   

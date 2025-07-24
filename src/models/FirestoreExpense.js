@@ -55,10 +55,11 @@ class ExpenseModel {
           .where('date', '<=', new Date(filters.endDate));
       }
 
-      // Apply sorting
-      const sortBy = filters.sortBy || 'date';
-      const sortOrder = filters.sortOrder === 'asc' ? 'asc' : 'desc';
-      query = query.orderBy(sortBy, sortOrder);
+      // Apply sorting (temporarily disabled to avoid index requirement)
+      // TODO: Re-enable after Firestore composite index is created
+      // const sortBy = filters.sortBy || 'date';
+      // const sortOrder = filters.sortOrder === 'asc' ? 'asc' : 'desc';
+      // query = query.orderBy(sortBy, sortOrder);
 
       // Apply pagination
       if (filters.limit) {
@@ -77,6 +78,27 @@ class ExpenseModel {
           id: doc.id,
           ...doc.data()
         });
+      });
+
+      // Apply client-side sorting (temporary until Firestore index is ready)
+      const sortBy = filters.sortBy || 'date';
+      const sortOrder = filters.sortOrder === 'asc' ? 'asc' : 'desc';
+
+      expenses.sort((a, b) => {
+        let aValue = a[sortBy];
+        let bValue = b[sortBy];
+
+        // Handle date sorting
+        if (sortBy === 'date') {
+          aValue = new Date(aValue);
+          bValue = new Date(bValue);
+        }
+
+        if (sortOrder === 'asc') {
+          return aValue > bValue ? 1 : -1;
+        } else {
+          return aValue < bValue ? 1 : -1;
+        }
       });
 
       return expenses;

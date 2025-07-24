@@ -2,11 +2,7 @@ import { Expense, WeeklyAnalysis } from '../models/index.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import moment from 'moment';
 
-// @desc    Get weekly analysis
-// @route   GET /api/analysis/weekly
-// @access  Private
 export const getWeeklyAnalysis = asyncHandler(async (req, res) => {
-  // Ensure user is authenticated
   if (!req.userId) {
     return res.status(401).json({
       success: false,
@@ -14,13 +10,9 @@ export const getWeeklyAnalysis = asyncHandler(async (req, res) => {
     });
   }
 
-  console.log('🔍 GET /api/analysis/weekly called with query:', req.query);
-  console.log('👤 User ID:', req.userId);
-
   const { startDate } = req.query;
 
   if (!startDate) {
-    console.log('❌ No startDate provided');
     return res.status(400).json({
       success: false,
       message: 'Start date is required'
@@ -30,24 +22,15 @@ export const getWeeklyAnalysis = asyncHandler(async (req, res) => {
   const weekStart = moment(startDate).startOf('day').toDate();
   const weekEnd = moment(weekStart).add(6, 'days').endOf('day').toDate();
 
-  console.log('📅 Week range:', { weekStart, weekEnd, startDate });
-
-  // Check if analysis already exists
-  console.log('🔍 Checking for existing analysis...');
   let analysis = await WeeklyAnalysis.findByWeek(weekStart);
 
   if (!analysis) {
-    console.log('❌ No existing analysis found, generating new one...');
     // Generate new analysis with user ID
     analysis = await createWeeklyAnalysis(weekStart, weekEnd, req.userId);
-    console.log('✅ New analysis created:', analysis);
   } else {
-    console.log('✅ Found existing analysis:', analysis);
   }
 
-  // Ensure analysis has all required fields
   if (!analysis) {
-    console.log('❌ Analysis is null, creating empty analysis');
     analysis = {
       weekStartDate: weekStart,
       weekEndDate: weekEnd,
@@ -61,9 +44,7 @@ export const getWeeklyAnalysis = asyncHandler(async (req, res) => {
     };
   }
 
-  // Ensure topExpenses exists
   if (!analysis.topExpenses) {
-    console.log('⚠️ topExpenses missing, adding empty array');
     analysis.topExpenses = [];
   }
 
@@ -80,9 +61,6 @@ export const getWeeklyAnalysis = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Generate weekly analysis
-// @route   POST /api/analysis/weekly/generate
-// @access  Public
 export const generateWeeklyAnalysis = asyncHandler(async (req, res) => {
   const { startDate } = req.body;
   
@@ -107,16 +85,11 @@ export const generateWeeklyAnalysis = asyncHandler(async (req, res) => {
 
 // Helper function to create weekly analysis
 const createWeeklyAnalysis = async (weekStart, weekEnd, userId) => {
-  console.log('🏗️ Creating weekly analysis for range:', { weekStart, weekEnd, userId });
-
   if (!userId) {
     throw new Error('User ID is required for creating weekly analysis');
   }
 
   // Get all expenses for the week for the specific user
-  console.log('📊 Fetching expenses from database...');
-  console.log('📅 Date range for query:', { weekStart, weekEnd });
-
   // CRITICAL: Always filter by user ID
   const expenses = await Expense.find({
     startDate: weekStart,
@@ -124,15 +97,6 @@ const createWeeklyAnalysis = async (weekStart, weekEnd, userId) => {
     sortBy: 'date',
     sortOrder: 'desc'
   }, userId);
-
-  console.log('💰 Found expenses:', expenses.length);
-  console.log('💰 Expense details:', expenses.map(e => ({
-    id: e.id,
-    description: e.description,
-    amount: e.amount,
-    category: e.category,
-    date: e.date
-  })));
 
   if (expenses.length === 0) {
     console.log('❌ No expenses found for this week');
@@ -251,26 +215,15 @@ const createWeeklyAnalysis = async (weekStart, weekEnd, userId) => {
     insights
   };
   
-  console.log('💾 Saving analysis data:', analysisData);
-
   const analysis = await WeeklyAnalysis.findOneAndUpdate(
     { weekStartDate: weekStart },
     analysisData,
     { upsert: true, new: true }
   );
 
-  console.log('✅ Analysis saved successfully:', {
-    id: analysis?.id,
-    hasTopExpenses: !!analysis?.topExpenses,
-    topExpensesCount: analysis?.topExpenses?.length || 0
-  });
-
   return analysis;
 };
 
-// @desc    Get recent analyses
-// @route   GET /api/analysis/recent
-// @access  Public
 export const getRecentAnalyses = asyncHandler(async (req, res) => {
   const { limit = 10 } = req.query;
   
