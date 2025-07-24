@@ -74,17 +74,49 @@ class ExpenseModel {
       const expenses = [];
 
       snapshot.forEach(doc => {
-        expenses.push({
+        const expenseData = {
           id: doc.id,
           ...doc.data()
-        });
+        };
+        expenses.push(expenseData);
       });
+
+      console.log(`📊 Raw expenses from Firestore (${expenses.length} items):`,
+        expenses.slice(0, 2).map(e => ({
+          id: e.id,
+          description: e.description,
+          amount: e.amount,
+          category: e.category,
+          date: e.date,
+          userId: e.userId
+        }))
+      );
+
+      // Apply client-side filtering (since we can't use complex Firestore queries)
+      let filteredExpenses = expenses;
+
+      // Apply category filter
+      if (filters.category) {
+        filteredExpenses = filteredExpenses.filter(expense =>
+          expense.category === filters.category
+        );
+      }
+
+      // Apply date range filter
+      if (filters.startDate && filters.endDate) {
+        const startDate = new Date(filters.startDate);
+        const endDate = new Date(filters.endDate);
+        filteredExpenses = filteredExpenses.filter(expense => {
+          const expenseDate = new Date(expense.date);
+          return expenseDate >= startDate && expenseDate <= endDate;
+        });
+      }
 
       // Apply client-side sorting (temporary until Firestore index is ready)
       const sortBy = filters.sortBy || 'date';
       const sortOrder = filters.sortOrder === 'asc' ? 'asc' : 'desc';
 
-      expenses.sort((a, b) => {
+      filteredExpenses.sort((a, b) => {
         let aValue = a[sortBy];
         let bValue = b[sortBy];
 
@@ -94,6 +126,12 @@ class ExpenseModel {
           bValue = new Date(bValue);
         }
 
+        // Handle numeric sorting (like amount)
+        if (typeof aValue === 'number' && typeof bValue === 'number') {
+          return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+        }
+
+        // Handle string/other sorting
         if (sortOrder === 'asc') {
           return aValue > bValue ? 1 : -1;
         } else {
@@ -101,7 +139,22 @@ class ExpenseModel {
         }
       });
 
-      return expenses;
+      // Apply pagination after filtering and sorting
+      const offset = parseInt(filters.offset) || 0;
+      const limit = parseInt(filters.limit) || filteredExpenses.length;
+      const paginatedExpenses = filteredExpenses.slice(offset, offset + limit);
+
+      console.log(`📊 Final filtered expenses (${paginatedExpenses.length} items):`,
+        paginatedExpenses.slice(0, 2).map(e => ({
+          id: e.id,
+          description: e.description,
+          amount: e.amount,
+          category: e.category,
+          date: e.date
+        }))
+      );
+
+      return paginatedExpenses;
     } catch (error) {
       throw new Error(`Error fetching expenses: ${error.message}`);
     }
@@ -251,9 +304,9 @@ class ExpenseModel {
   }
 
   // Count documents with filters
-  async countDocuments(filters = {}) {
+  async countDocuments(filters = {}, userId = null) {
     try {
-      const expenses = await this.find(filters);
+      const expenses = await this.find(filters, userId);
       return expenses.length;
     } catch (error) {
       throw new Error(`Error counting expenses: ${error.message}`);

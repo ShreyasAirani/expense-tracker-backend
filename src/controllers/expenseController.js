@@ -58,8 +58,19 @@ export const getExpenses = asyncHandler(async (req, res) => {
 
   // CRITICAL: Always filter by authenticated user's ID
   const expenses = await Expense.find(filters, req.userId);
-  const total = await Expense.countDocuments(filters);
-  
+  const total = await Expense.countDocuments(filters, req.userId);
+
+  console.log(`💰 Controller returning ${expenses.length} expenses for user ${req.userId}`);
+  console.log('💰 Sample expense data:', expenses.slice(0, 1).map(e => ({
+    id: e.id,
+    description: e.description,
+    amount: e.amount,
+    amountType: typeof e.amount,
+    category: e.category,
+    date: e.date,
+    userId: e.userId
+  })));
+
   res.status(200).json({
     success: true,
     data: expenses,
