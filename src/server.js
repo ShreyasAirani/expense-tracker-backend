@@ -53,11 +53,17 @@ app.use(cors({
 
     console.log('🌐 CORS request from origin:', origin);
 
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    // Temporary: Allow all Vercel app origins for debugging
+    if (origin && (
+      allowedOrigins.indexOf(origin) !== -1 ||
+      origin.includes('vercel.app') ||
+      origin.includes('ezspend')
+    )) {
       console.log('✅ CORS origin allowed:', origin);
       callback(null, true);
     } else {
       console.log('❌ CORS origin blocked:', origin);
+      console.log('❌ Allowed origins:', allowedOrigins);
       callback(new Error('Not allowed by CORS'));
     }
   },
