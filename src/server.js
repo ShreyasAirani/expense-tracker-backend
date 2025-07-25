@@ -30,49 +30,31 @@ schedulerService.initialize();
 // Security middleware
 app.use(helmet());
 
-// CORS configuration (before rate limiting)
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://localhost:5175',
-  'http://localhost:3000',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:5174',
-  'http://127.0.0.1:5175',
-  'https://ezspend.vercel.app',
-  process.env.FRONTEND_URL
-].filter(Boolean);
-
-console.log('🌐 CORS allowed origins:', allowedOrigins);
+// CORS configuration - Simplified and more permissive for debugging
+console.log('🌐 NODE_ENV:', process.env.NODE_ENV);
 console.log('🌐 FRONTEND_URL environment variable:', process.env.FRONTEND_URL);
 
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  console.log('🌐 Request from origin:', origin);
+  console.log('🌐 Request method:', req.method);
+  console.log('🌐 Request headers:', req.headers);
 
-    console.log('🌐 CORS request from origin:', origin);
+  // Set CORS headers for all requests
+  res.header('Access-Control-Allow-Origin', origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Max-Age', '86400'); // 24 hours
 
-    // Temporary: Allow all Vercel app origins for debugging
-    if (origin && (
-      allowedOrigins.indexOf(origin) !== -1 ||
-      origin.includes('vercel.app') ||
-      origin.includes('ezspend')
-    )) {
-      console.log('✅ CORS origin allowed:', origin);
-      callback(null, true);
-    } else {
-      console.log('❌ CORS origin blocked:', origin);
-      console.log('❌ Allowed origins:', allowedOrigins);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  preflightContinue: false,
-  optionsSuccessStatus: 200
-}));
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    console.log('🌐 Handling OPTIONS preflight request');
+    return res.sendStatus(200);
+  }
+
+  next();
+});
 
 // Rate limiting (disabled for development)
 if (process.env.NODE_ENV !== 'development') {
@@ -94,16 +76,6 @@ if (process.env.NODE_ENV !== 'development') {
 
 // Handle preflight requests
 app.options('*', cors());
-
-// Handle preflight requests explicitly
-app.options('*', (req, res) => {
-  console.log('🌐 OPTIONS preflight request from:', req.get('Origin'));
-  res.header('Access-Control-Allow-Origin', req.get('Origin'));
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.sendStatus(200);
-});
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
