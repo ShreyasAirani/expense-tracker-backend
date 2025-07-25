@@ -22,18 +22,23 @@ export const getWeeklyAnalysis = asyncHandler(async (req, res) => {
   const weekStart = moment(startDate).startOf('day').toDate();
   const weekEnd = moment(weekStart).add(6, 'days').endOf('day').toDate();
 
-  let analysis = await WeeklyAnalysis.findByWeek(weekStart);
+  // CRITICAL: Pass user ID to find user-specific analysis
+  let analysis = await WeeklyAnalysis.findByWeek(weekStart, req.userId);
 
   if (!analysis) {
     // Generate new analysis with user ID
+    console.log('📊 No existing analysis found, creating new one for user:', req.userId);
     analysis = await createWeeklyAnalysis(weekStart, weekEnd, req.userId);
   } else {
+    console.log('📊 Found existing analysis for user:', req.userId, 'with total:', analysis.totalAmount);
   }
 
   if (!analysis) {
+    console.log('📊 Creating default empty analysis for user:', req.userId);
     analysis = {
       weekStartDate: weekStart,
       weekEndDate: weekEnd,
+      userId: req.userId, // Include user ID
       totalAmount: 0,
       totalExpenses: 0,
       averageDailySpend: 0,
@@ -62,20 +67,29 @@ export const getWeeklyAnalysis = asyncHandler(async (req, res) => {
 });
 
 export const generateWeeklyAnalysis = asyncHandler(async (req, res) => {
+  // Ensure user is authenticated
+  if (!req.userId) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required'
+    });
+  }
+
   const { startDate } = req.body;
-  
+
   if (!startDate) {
     return res.status(400).json({
       success: false,
       message: 'Start date is required'
     });
   }
-  
+
   const weekStart = moment(startDate).startOf('day').toDate();
   const weekEnd = moment(weekStart).add(6, 'days').endOf('day').toDate();
-  
-  const analysis = await createWeeklyAnalysis(weekStart, weekEnd);
-  
+
+  // CRITICAL: Pass user ID to create user-specific analysis
+  const analysis = await createWeeklyAnalysis(weekStart, weekEnd, req.userId);
+
   res.status(201).json({
     success: true,
     data: analysis,
@@ -99,10 +113,11 @@ const createWeeklyAnalysis = async (weekStart, weekEnd, userId) => {
   }, userId);
 
   if (expenses.length === 0) {
-    console.log('❌ No expenses found for this week');
+    console.log('❌ No expenses found for this week for user:', userId);
     return {
       weekStartDate: weekStart,
       weekEndDate: weekEnd,
+      userId, // Include user ID
       totalAmount: 0,
       totalExpenses: 0,
       averageDailySpend: 0,
@@ -202,10 +217,11 @@ const createWeeklyAnalysis = async (weekStart, weekEnd, userId) => {
     averageExpenseAmount
   };
   
-  // Create or update analysis
+  // Create or update analysis - CRITICAL: Include user ID
   const analysisData = {
     weekStartDate: weekStart,
     weekEndDate: weekEnd,
+    userId, // Include user ID in analysis data
     totalAmount,
     totalExpenses,
     averageDailySpend,
@@ -214,9 +230,9 @@ const createWeeklyAnalysis = async (weekStart, weekEnd, userId) => {
     topExpenses,
     insights
   };
-  
+
   const analysis = await WeeklyAnalysis.findOneAndUpdate(
-    { weekStartDate: weekStart },
+    { weekStartDate: weekStart, userId }, // Include userId in filter
     analysisData,
     { upsert: true, new: true }
   );

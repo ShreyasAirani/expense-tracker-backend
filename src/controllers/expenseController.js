@@ -31,12 +31,10 @@ const expenseValidationSchema = Joi.object({
   })
 });
 
-// @desc    Get all expenses
+// @desc    Get all expenses with filters
 // @route   GET /api/expenses
 // @access  Private
 export const getExpenses = asyncHandler(async (req, res) => {
-  const { startDate, endDate, category, limit = 50, page = 1, sortBy = 'date', sortOrder = 'desc' } = req.query;
-
   // Ensure user is authenticated
   if (!req.userId) {
     return res.status(401).json({
@@ -45,42 +43,62 @@ export const getExpenses = asyncHandler(async (req, res) => {
     });
   }
 
-  // Build filters for Firestore
-  const filters = {
+  const userId = req.userId;
+  console.log('🔍 Getting expenses for user:', userId);
+  console.log('🔍 Query params:', req.query);
+
+  const {
+    page = 1,
+    limit = 50,
+    category,
     startDate,
     endDate,
-    category,
-    sortBy,
-    sortOrder,
+    sortBy = 'date',
+    sortOrder = 'desc'
+  } = req.query;
+
+  const filters = {
     limit: parseInt(limit),
-    offset: (parseInt(page) - 1) * parseInt(limit)
+    offset: (parseInt(page) - 1) * parseInt(limit),
+    sortBy,
+    sortOrder
   };
 
-  // CRITICAL: Always filter by authenticated user's ID
-  const expenses = await Expense.find(filters, req.userId);
-  const total = await Expense.countDocuments(filters, req.userId);
+  if (category) filters.category = category;
+  if (startDate && endDate) {
+    filters.startDate = startDate;
+    filters.endDate = endDate;
+  }
 
-  console.log(`💰 Controller returning ${expenses.length} expenses for user ${req.userId}`);
-  console.log('💰 Sample expense data:', expenses.slice(0, 1).map(e => ({
-    id: e.id,
-    description: e.description,
-    amount: e.amount,
-    amountType: typeof e.amount,
-    category: e.category,
-    date: e.date,
-    userId: e.userId
-  })));
+  console.log('🔍 Applied filters:', filters);
 
-  res.status(200).json({
-    success: true,
-    data: expenses,
-    pagination: {
-      page: parseInt(page),
-      limit: parseInt(limit),
-      total,
-      pages: Math.ceil(total / parseInt(limit))
-    }
-  });
+  try {
+    // Use Expense instead of ExpenseModel
+    const expenses = await Expense.find(filters, userId);
+    const totalExpenses = await Expense.countDocuments(filters, userId);
+
+    console.log('🔍 Found expenses:', expenses.length);
+    console.log('🔍 Total expenses in DB:', totalExpenses);
+
+    res.status(200).json({
+      success: true,
+      data: expenses,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalExpenses / parseInt(limit)),
+        totalExpenses,
+        hasNextPage: parseInt(page) < Math.ceil(totalExpenses / parseInt(limit)),
+        hasPrevPage: parseInt(page) > 1
+      }
+    });
+  } catch (error) {
+    console.error('Error in getExpenses:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching expenses',
+      error: error.message
+    });
+  }
 });
 
 // @desc    Get single expense
@@ -130,31 +148,42 @@ export const createExpense = asyncHandler(async (req, res) => {
     });
   }
 
-  // Validate input
-  const { error, value } = expenseValidationSchema.validate(req.body);
+  const { description, amount, category, date } = req.body;
 
-  if (error) {
-    console.log('Validation error details:', error.details);
-    console.log('Received data:', req.body);
+  // Validate required fields
+  if (!description || !amount || !category || !date) {
     return res.status(400).json({
       success: false,
-      message: 'Validation error',
-      errors: error.details.map(detail => ({
-        field: detail.path.join('.'),
-        message: detail.message,
-        value: detail.context?.value
-      }))
+      message: 'Please provide description, amount, category, and date'
     });
   }
 
-  // CRITICAL: Always associate expense with authenticated user
-  const expense = await Expense.create(value, req.userId);
-  
-  res.status(201).json({
-    success: true,
-    data: expense,
-    message: 'Expense created successfully'
-  });
+  try {
+    const expenseData = {
+      description,
+      amount: parseFloat(amount),
+      category,
+      date: new Date(date),
+      userId: req.userId,
+      createdAt: new Date()
+    };
+
+    // Use Expense instead of ExpenseModel
+    const expense = await Expense.create(expenseData);
+
+    res.status(201).json({
+      success: true,
+      data: expense,
+      message: 'Expense created successfully'
+    });
+  } catch (error) {
+    console.error('Error creating expense:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error creating expense',
+      error: error.message
+    });
+  }
 });
 
 // @desc    Update expense

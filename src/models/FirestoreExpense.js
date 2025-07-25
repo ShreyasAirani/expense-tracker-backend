@@ -36,12 +36,42 @@ class ExpenseModel {
   // Get all expenses with optional filters (user-specific)
   async find(filters = {}, userId = null) {
     try {
+      console.log('🔍 FirestoreExpense.find called with:', { filters, userId });
+      
       let query = this.collection;
 
+      // First, let's get ALL expenses to see what's in the database
+      const allSnapshot = await this.collection.get();
+      console.log('🔍 Total expenses in collection:', allSnapshot.size);
+      
+      // Log first few expenses to check their structure and count by user
+      const sampleExpenses = [];
+      const userCounts = {};
+      allSnapshot.forEach((doc, index) => {
+        const data = doc.data();
+
+        // Count expenses per user
+        if (data.userId) {
+          userCounts[data.userId] = (userCounts[data.userId] || 0) + 1;
+        }
+
+        if (index < 5) {
+          sampleExpenses.push({
+            id: doc.id,
+            userId: data.userId,
+            description: data.description,
+            amount: data.amount,
+            date: data.date
+          });
+        }
+      });
+      console.log('🔍 Sample expenses from DB:', sampleExpenses);
+      console.log('🔍 Expenses count by user:', userCounts);
+
       // Filter by user ID first (most important for multi-user)
-      // If userId is provided, filter by it; otherwise get all expenses (for testing)
       if (userId) {
         query = query.where('userId', '==', userId);
+        console.log('🔍 Filtering by userId:', userId);
       }
 
       // Apply other filters
@@ -49,19 +79,7 @@ class ExpenseModel {
         query = query.where('category', '==', filters.category);
       }
 
-      if (filters.startDate && filters.endDate) {
-        query = query
-          .where('date', '>=', new Date(filters.startDate))
-          .where('date', '<=', new Date(filters.endDate));
-      }
-
-      // Apply sorting (temporarily disabled to avoid index requirement)
-      // TODO: Re-enable after Firestore composite index is created
-      // const sortBy = filters.sortBy || 'date';
-      // const sortOrder = filters.sortOrder === 'asc' ? 'asc' : 'desc';
-      // query = query.orderBy(sortBy, sortOrder);
-
-      // Apply pagination
+      // Apply pagination at Firestore level for better performance
       if (filters.limit) {
         query = query.limit(parseInt(filters.limit));
       }
@@ -74,45 +92,38 @@ class ExpenseModel {
       const expenses = [];
 
       snapshot.forEach(doc => {
+        const data = doc.data();
         const expenseData = {
           id: doc.id,
-          ...doc.data()
+          ...data,
+          // Ensure date is properly formatted
+          date: data.date?.toDate ? data.date.toDate() : new Date(data.date),
+          // Ensure amount is a number
+          amount: typeof data.amount === 'number' ? data.amount : parseFloat(data.amount) || 0
         };
         expenses.push(expenseData);
       });
 
-      console.log(`📊 Raw expenses from Firestore (${expenses.length} items):`,
-        expenses.slice(0, 2).map(e => ({
-          id: e.id,
-          description: e.description,
-          amount: e.amount,
-          category: e.category,
-          date: e.date,
-          userId: e.userId
-        }))
-      );
+      console.log(`📊 Raw expenses from Firestore after userId filter (${expenses.length} items)`);
 
-      // Apply client-side filtering (since we can't use complex Firestore queries)
+      // Apply client-side filtering
       let filteredExpenses = expenses;
 
-      // Apply category filter
-      if (filters.category) {
-        filteredExpenses = filteredExpenses.filter(expense =>
-          expense.category === filters.category
-        );
-      }
-
-      // Apply date range filter
+      // Apply date range filter (client-side)
       if (filters.startDate && filters.endDate) {
         const startDate = new Date(filters.startDate);
         const endDate = new Date(filters.endDate);
+        endDate.setHours(23, 59, 59, 999);
+        
         filteredExpenses = filteredExpenses.filter(expense => {
           const expenseDate = new Date(expense.date);
           return expenseDate >= startDate && expenseDate <= endDate;
         });
+        
+        console.log(`📊 After date filter: ${filteredExpenses.length} items`);
       }
 
-      // Apply client-side sorting (temporary until Firestore index is ready)
+      // Apply client-side sorting
       const sortBy = filters.sortBy || 'date';
       const sortOrder = filters.sortOrder === 'asc' ? 'asc' : 'desc';
 
@@ -120,18 +131,15 @@ class ExpenseModel {
         let aValue = a[sortBy];
         let bValue = b[sortBy];
 
-        // Handle date sorting
         if (sortBy === 'date') {
           aValue = new Date(aValue);
           bValue = new Date(bValue);
         }
 
-        // Handle numeric sorting (like amount)
         if (typeof aValue === 'number' && typeof bValue === 'number') {
           return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
         }
 
-        // Handle string/other sorting
         if (sortOrder === 'asc') {
           return aValue > bValue ? 1 : -1;
         } else {
@@ -139,23 +147,11 @@ class ExpenseModel {
         }
       });
 
-      // Apply pagination after filtering and sorting
-      const offset = parseInt(filters.offset) || 0;
-      const limit = parseInt(filters.limit) || filteredExpenses.length;
-      const paginatedExpenses = filteredExpenses.slice(offset, offset + limit);
+      console.log(`📊 Final filtered expenses: ${filteredExpenses.length} items`);
 
-      console.log(`📊 Final filtered expenses (${paginatedExpenses.length} items):`,
-        paginatedExpenses.slice(0, 2).map(e => ({
-          id: e.id,
-          description: e.description,
-          amount: e.amount,
-          category: e.category,
-          date: e.date
-        }))
-      );
-
-      return paginatedExpenses;
+      return filteredExpenses;
     } catch (error) {
+      console.error('Error in find method:', error);
       throw new Error(`Error fetching expenses: ${error.message}`);
     }
   }
@@ -269,13 +265,12 @@ class ExpenseModel {
       const groupedMap = new Map();
 
       expenses.forEach(expense => {
-        // Convert Firestore timestamp to date string
         let dateKey;
-        if (expense.date && expense.date._seconds) {
-          dateKey = new Date(expense.date._seconds * 1000).toISOString().split('T')[0];
-        } else if (expense.date) {
-          dateKey = new Date(expense.date).toISOString().split('T')[0];
-        } else {
+        try {
+          const expenseDate = expense.date instanceof Date ? expense.date : new Date(expense.date);
+          dateKey = expenseDate.toISOString().split('T')[0];
+        } catch (error) {
+          console.warn('Invalid date for expense:', expense.id, expense.date);
           dateKey = 'unknown';
         }
 
@@ -299,6 +294,7 @@ class ExpenseModel {
         new Date(b.date) - new Date(a.date)
       );
     } catch (error) {
+      console.error('Error in getExpensesGroupedByDate:', error);
       throw new Error(`Error grouping expenses by date: ${error.message}`);
     }
   }

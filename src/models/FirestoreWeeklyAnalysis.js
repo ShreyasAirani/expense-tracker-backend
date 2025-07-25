@@ -27,49 +27,71 @@ class WeeklyAnalysisModel {
     }
   }
 
-  // Find analysis by week start date
-  async findByWeek(weekStartDate) {
+  // Find analysis by week start date and user ID
+  async findByWeek(weekStartDate, userId = null) {
     try {
       const startDate = new Date(weekStartDate);
       startDate.setHours(0, 0, 0, 0);
-      
+
       const endDate = new Date(startDate);
       endDate.setHours(23, 59, 59, 999);
 
-      const snapshot = await this.collection
-        .where('weekStartDate', '>=', startDate)
-        .where('weekStartDate', '<=', endDate)
-        .limit(1)
-        .get();
+      console.log('🔍 WeeklyAnalysis: Looking for analysis with userId:', userId, 'and date range:', startDate, 'to', endDate);
 
-      if (snapshot.empty) {
-        return null;
+      // First query by userId to avoid composite index requirement
+      let query = this.collection;
+
+      if (userId) {
+        query = query.where('userId', '==', userId);
+        console.log('🔍 WeeklyAnalysis: Filtering by userId:', userId);
       }
 
-      const doc = snapshot.docs[0];
-      return {
-        id: doc.id,
-        ...doc.data()
-      };
+      const snapshot = await query.get();
+      console.log('🔍 WeeklyAnalysis: Found', snapshot.size, 'analysis documents for user');
+
+      // Filter by date range in memory to avoid composite index
+      const matchingDocs = [];
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        const docDate = data.weekStartDate?.toDate ? data.weekStartDate.toDate() : new Date(data.weekStartDate);
+
+        console.log('🔍 WeeklyAnalysis: Checking doc', doc.id, 'with userId:', data.userId, 'and date:', docDate);
+
+        if (docDate >= startDate && docDate <= endDate) {
+          console.log('✅ WeeklyAnalysis: Date matches! Adding to results');
+          matchingDocs.push({
+            id: doc.id,
+            ...data
+          });
+        } else {
+          console.log('❌ WeeklyAnalysis: Date does not match');
+        }
+      });
+
+      const result = matchingDocs.length > 0 ? matchingDocs[0] : null;
+      console.log('🔍 WeeklyAnalysis: Final result:', result ? `Found analysis with userId: ${result.userId}, total: ${result.totalAmount}` : 'No matching analysis found');
+
+      return result;
     } catch (error) {
       throw new Error(`Error finding weekly analysis: ${error.message}`);
     }
   }
 
-  // Find and update or create (upsert)
+  // Find and update or create (upsert) - user-specific
   async findOneAndUpdate(filter, updateData, options = {}) {
     try {
-      const existing = await this.findByWeek(filter.weekStartDate);
-      
+      // Pass userId to findByWeek for user-specific lookup
+      const existing = await this.findByWeek(filter.weekStartDate, filter.userId);
+
       if (existing) {
         // Update existing
         const updatePayload = {
           ...updateData,
           updatedAt: FieldValue.serverTimestamp()
         };
-        
+
         await this.collection.doc(existing.id).update(updatePayload);
-        
+
         // Return updated document
         const updatedDoc = await this.collection.doc(existing.id).get();
         return {
@@ -77,10 +99,14 @@ class WeeklyAnalysisModel {
           ...updatedDoc.data()
         };
       } else if (options.upsert) {
-        // Create new
-        return await this.create(updateData);
+        // Create new - ensure userId is included
+        const createData = {
+          ...updateData,
+          userId: filter.userId || updateData.userId
+        };
+        return await this.create(createData);
       }
-      
+
       return null;
     } catch (error) {
       throw new Error(`Error upserting weekly analysis: ${error.message}`);
