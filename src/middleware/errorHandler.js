@@ -29,7 +29,7 @@ export const errorHandler = (err, req, res, next) => {
   }
 
   if (err.name === 'TokenExpiredError') {
-    const message = 'Token expired';
+    const message = 'Timeout signin again';
     error = { message, statusCode: 401 };
   }
 
