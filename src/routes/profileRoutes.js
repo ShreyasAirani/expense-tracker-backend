@@ -11,6 +11,11 @@ const router = express.Router();
 const profileUpdateSchema = Joi.object({
   name: Joi.string().min(1).max(100).required(),
   email: Joi.string().email().required(),
+  income: Joi.number().min(0).allow(null).optional()
+    .messages({
+      'number.min': 'Income must be a positive number',
+      'number.base': 'Income must be a valid number'
+    }),
   preferences: Joi.object({
     currency: Joi.string().valid('USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'INR'),
     dateFormat: Joi.string().valid('MM/dd/yyyy', 'dd/MM/yyyy', 'yyyy-MM-dd', 'dd-MM-yyyy'),

@@ -18,6 +18,11 @@ const registerSchema = Joi.object({
     .messages({
       'string.min': 'Password must be at least 6 characters long',
       'any.required': 'Password is required'
+    }),
+  income: Joi.number().min(0).allow(null).optional()
+    .messages({
+      'number.min': 'Income must be a positive number',
+      'number.base': 'Income must be a valid number'
     })
 });
 
@@ -51,7 +56,7 @@ export const register = async (req, res) => {
       });
     }
 
-    const { name, email, password } = value;
+    const { name, email, password, income } = value;
 
     // Check if user already exists
     const existingUser = await User.findByEmail(email);
@@ -63,7 +68,7 @@ export const register = async (req, res) => {
     }
 
     // Create new user
-    const user = await User.create({ name, email, password });
+    const user = await User.create({ name, email, password, income });
 
     // Generate token
     const token = generateToken(user.id);
@@ -176,6 +181,11 @@ export const updateProfile = async (req, res) => {
   try {
     const updateSchema = Joi.object({
       name: Joi.string().trim().min(2).max(50).optional(),
+      income: Joi.number().min(0).allow(null).optional()
+        .messages({
+          'number.min': 'Income must be a positive number',
+          'number.base': 'Income must be a valid number'
+        }),
       preferences: Joi.object({
         currency: Joi.string().valid('USD', 'EUR', 'GBP', 'INR', 'JPY').optional(),
         dateFormat: Joi.string().valid('MM/dd/yyyy', 'dd/MM/yyyy', 'yyyy-MM-dd').optional(),

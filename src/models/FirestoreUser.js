@@ -18,6 +18,7 @@ class UserModel {
         email: userData.email.toLowerCase(),
         name: userData.name,
         password: hashedPassword,
+        income: userData.income || null, // Add income field
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
         isActive: true,
