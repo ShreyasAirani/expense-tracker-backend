@@ -113,20 +113,13 @@ export const getExpense = asyncHandler(async (req, res) => {
     });
   }
 
-  const expense = await Expense.findById(req.params.id);
+  // Use findById with userId to automatically verify ownership
+  const expense = await Expense.findById(req.params.id, req.userId);
 
   if (!expense) {
     return res.status(404).json({
       success: false,
-      message: 'Expense not found'
-    });
-  }
-
-  // CRITICAL: Verify expense belongs to authenticated user
-  if (expense.userId !== req.userId) {
-    return res.status(403).json({
-      success: false,
-      message: 'Access denied: You can only view your own expenses'
+      message: 'Expense not found or access denied'
     });
   }
   
@@ -198,25 +191,7 @@ export const updateExpense = asyncHandler(async (req, res) => {
     });
   }
 
-  // First, check if expense exists and belongs to user
-  const existingExpense = await Expense.findById(req.params.id);
-
-  if (!existingExpense) {
-    return res.status(404).json({
-      success: false,
-      message: 'Expense not found'
-    });
-  }
-
-  // CRITICAL: Verify expense belongs to authenticated user
-  if (existingExpense.userId !== req.userId) {
-    return res.status(403).json({
-      success: false,
-      message: 'Access denied: You can only update your own expenses'
-    });
-  }
-
-  // Validate input
+  // Validate input first
   const { error, value } = expenseValidationSchema.validate(req.body);
 
   if (error) {
@@ -233,19 +208,13 @@ export const updateExpense = asyncHandler(async (req, res) => {
     });
   }
 
-  const expense = await Expense.findByIdAndUpdate(
-    req.params.id,
-    value,
-    {
-      new: true,
-      runValidators: true
-    }
-  );
+  // Update expense with user verification
+  const expense = await Expense.findByIdAndUpdate(req.params.id, value, req.userId);
 
   if (!expense) {
     return res.status(404).json({
       success: false,
-      message: 'Expense not found'
+      message: 'Expense not found or access denied'
     });
   }
   
@@ -277,25 +246,15 @@ export const deleteExpense = asyncHandler(async (req, res) => {
     });
   }
 
-  const expense = await Expense.findById(expenseId);
+  // Delete expense with user verification
+  const expense = await Expense.findByIdAndDelete(expenseId, req.userId);
 
   if (!expense) {
     return res.status(404).json({
       success: false,
-      message: 'Expense not found'
+      message: 'Expense not found or access denied'
     });
   }
-
-  // CRITICAL: Verify expense belongs to authenticated user
-  if (expense.userId !== req.userId) {
-    return res.status(403).json({
-      success: false,
-      message: 'Access denied: You can only delete your own expenses'
-    });
-  }
-
-  // Use Firestore delete method
-  await Expense.findByIdAndDelete(expenseId);
   
   res.status(200).json({
     success: true,
@@ -339,45 +298,52 @@ export const getExpensesGroupedByDate = asyncHandler(async (req, res) => {
 
 // @desc    Get expense statistics
 // @route   GET /api/expenses/stats
-// @access  Public
+// @access  Private
 export const getExpenseStats = asyncHandler(async (req, res) => {
-  const { startDate, endDate } = req.query;
-
-  let matchStage = {};
-  if (startDate || endDate) {
-    matchStage.date = {};
-    if (startDate) matchStage.date.$gte = new Date(startDate);
-    if (endDate) matchStage.date.$lte = new Date(endDate);
+  // Ensure user is authenticated
+  if (!req.userId) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required'
+    });
   }
 
-  const stats = await Expense.aggregate([
-    { $match: matchStage },
-    {
-      $group: {
-        _id: null,
-        totalAmount: { $sum: '$amount' },
-        totalExpenses: { $sum: 1 },
-        averageAmount: { $avg: '$amount' },
-        maxAmount: { $max: '$amount' },
-        minAmount: { $min: '$amount' }
-      }
-    }
-  ]);
+  const { startDate, endDate } = req.query;
 
+  // Build filters for user-specific expenses
+  const filters = {
+    startDate,
+    endDate,
+    sortBy: 'date',
+    sortOrder: 'desc'
+  };
+
+  // Get user's expenses
+  const expenses = await Expense.find(filters, req.userId);
+
+  // Calculate statistics
+  const totalExpenses = expenses.length;
+  const totalAmount = expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0);
+  const averageAmount = totalExpenses > 0 ? totalAmount / totalExpenses : 0;
+  const maxAmount = totalExpenses > 0 ? Math.max(...expenses.map(e => e.amount || 0)) : 0;
+  const minAmount = totalExpenses > 0 ? Math.min(...expenses.map(e => e.amount || 0)) : 0;
+
+  // Get category statistics for the user
   const categoryStats = await Expense.getCategoryTotals(
-    startDate || new Date(0),
-    endDate || new Date()
+    startDate ? new Date(startDate) : new Date(0),
+    endDate ? new Date(endDate) : new Date(),
+    req.userId
   );
-  
+
   res.status(200).json({
     success: true,
     data: {
-      overview: stats[0] || {
-        totalAmount: 0,
-        totalExpenses: 0,
-        averageAmount: 0,
-        maxAmount: 0,
-        minAmount: 0
+      overview: {
+        totalAmount,
+        totalExpenses,
+        averageAmount,
+        maxAmount,
+        minAmount
       },
       categoryBreakdown: categoryStats
     }

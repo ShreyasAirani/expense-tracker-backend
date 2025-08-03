@@ -156,47 +156,60 @@ class ExpenseModel {
     }
   }
 
-  // Get expense by ID
-  async findById(id) {
+  // Get expense by ID (with optional user verification)
+  async findById(id, userId = null) {
     try {
       const doc = await this.collection.doc(id).get();
-      
+
       if (!doc.exists) {
         return null;
       }
 
-      return {
+      const expense = {
         id: doc.id,
         ...doc.data()
       };
+
+      // If userId is provided, verify ownership
+      if (userId && expense.userId !== userId) {
+        return null; // Return null if expense doesn't belong to user
+      }
+
+      return expense;
     } catch (error) {
       throw new Error(`Error fetching expense: ${error.message}`);
     }
   }
 
-  // Update expense
-  async findByIdAndUpdate(id, updateData) {
+  // Update expense (with user verification)
+  async findByIdAndUpdate(id, updateData, userId = null) {
     try {
+      // First verify the expense exists and belongs to user
+      const existingExpense = await this.findById(id, userId);
+      if (!existingExpense) {
+        return null; // Expense not found or doesn't belong to user
+      }
+
       const updatePayload = {
         ...updateData,
         updatedAt: FieldValue.serverTimestamp()
       };
 
       await this.collection.doc(id).update(updatePayload);
-      
+
       // Return updated document
-      return await this.findById(id);
+      return await this.findById(id, userId);
     } catch (error) {
       throw new Error(`Error updating expense: ${error.message}`);
     }
   }
 
-  // Delete expense
-  async findByIdAndDelete(id) {
+  // Delete expense (with user verification)
+  async findByIdAndDelete(id, userId = null) {
     try {
-      const expense = await this.findById(id);
+      const expense = await this.findById(id, userId);
       if (!expense) {
-        return null;
+        return null; // Expense not found or doesn't belong to user
       }
 
       await this.collection.doc(id).delete();
@@ -224,10 +237,10 @@ class ExpenseModel {
     return await this.getByDateRange(startDate, endDate);
   }
 
-  // Get category totals with aggregation
-  async getCategoryTotals(startDate, endDate) {
+  // Get category totals with aggregation (user-specific)
+  async getCategoryTotals(startDate, endDate, userId = null) {
     try {
-      const expenses = await this.getByDateRange(startDate, endDate);
+      const expenses = await this.getByDateRange(startDate, endDate, userId);
 
       const categoryMap = new Map();
 
