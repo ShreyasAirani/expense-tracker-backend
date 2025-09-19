@@ -23,10 +23,14 @@ class ExpenseModel {
 
       const docRef = await this.collection.add(expense);
       const doc = await docRef.get();
-      
+      const data = doc.data();
+
       return {
         id: doc.id,
-        ...doc.data()
+        ...data,
+        // Convert timestamps to ISO strings
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt,
+        updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : data.updatedAt
       };
     } catch (error) {
       throw new Error(`Error creating expense: ${error.message}`);
@@ -42,7 +46,7 @@ class ExpenseModel {
 
       // First, let's get ALL expenses to see what's in the database
       const allSnapshot = await this.collection.get();
-      console.log('🔍 Total expenses in collection:', allSnapshot.size);
+      // console.log('🔍 Total expenses in collection:', allSnapshot.size);
       
       // Log first few expenses to check their structure and count by user
       const sampleExpenses = [];
@@ -65,19 +69,22 @@ class ExpenseModel {
           });
         }
       });
-      console.log('🔍 Sample expenses from DB:', sampleExpenses);
-      console.log('🔍 Expenses count by user:', userCounts);
+      // console.log('🔍 Sample expenses from DB:', sampleExpenses);
+      // console.log('🔍 Expenses count by user:', userCounts);
 
       // Filter by user ID first (most important for multi-user)
       if (userId) {
         query = query.where('userId', '==', userId);
-        console.log('🔍 Filtering by userId:', userId);
+        // console.log('🔍 Filtering by userId:', userId);
       }
 
       // Apply other filters
       if (filters.category) {
         query = query.where('category', '==', filters.category);
       }
+
+      // Apply ordering by date descending to get latest expenses first
+      query = query.orderBy('date', 'desc');
 
       // Apply pagination at Firestore level for better performance
       if (filters.limit) {
@@ -99,7 +106,10 @@ class ExpenseModel {
           // Ensure date is properly formatted
           date: data.date?.toDate ? data.date.toDate() : new Date(data.date),
           // Ensure amount is a number
-          amount: typeof data.amount === 'number' ? data.amount : parseFloat(data.amount) || 0
+          amount: typeof data.amount === 'number' ? data.amount : parseFloat(data.amount) || 0,
+          // Convert timestamps to ISO strings
+          createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt,
+          updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : data.updatedAt
         };
         expenses.push(expenseData);
       });
@@ -165,9 +175,13 @@ class ExpenseModel {
         return null;
       }
 
+      const data = doc.data();
       const expense = {
         id: doc.id,
-        ...doc.data()
+        ...data,
+        // Convert timestamps to ISO strings
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt,
+        updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : data.updatedAt
       };
 
       // If userId is provided, verify ownership

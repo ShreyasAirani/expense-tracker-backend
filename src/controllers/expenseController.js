@@ -49,13 +49,14 @@ export const getExpenses = asyncHandler(async (req, res) => {
 
   const {
     page = 1,
-    limit = 50,
+    limit = 1000,
     category,
     startDate,
-    endDate,
-    sortBy = 'date',
-    sortOrder = 'desc'
+    endDate
   } = req.query;
+
+  const sortBy = 'date';
+  const sortOrder = 'desc';
 
   const filters = {
     limit: parseInt(limit),
