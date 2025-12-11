@@ -297,6 +297,66 @@ export const getExpensesGroupedByDate = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Get all expenses without limit
+// @route   GET /api/expenses/all
+// @access  Private
+export const getAllExpenses = asyncHandler(async (req, res) => {
+  // Ensure user is authenticated
+  if (!req.userId) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required'
+    });
+  }
+
+  const userId = req.userId;
+  console.log('🔍 Getting all expenses for user:', userId);
+  console.log('🔍 Query params:', req.query);
+
+  const {
+    category,
+    startDate,
+    endDate
+  } = req.query;
+
+  const sortBy = 'date';
+  const sortOrder = 'desc';
+
+  const filters = {
+    sortBy,
+    sortOrder
+  };
+
+  if (category) filters.category = category;
+  if (startDate && endDate) {
+    filters.startDate = startDate;
+    filters.endDate = endDate;
+  }
+
+  console.log('🔍 Applied filters:', filters);
+
+  try {
+    // Use Expense instead of ExpenseModel
+    const expenses = await Expense.find(filters, userId);
+    const totalExpenses = expenses.length;
+
+    console.log('🔍 Found expenses:', expenses.length);
+
+    res.status(200).json({
+      success: true,
+      data: expenses,
+      totalExpenses
+    });
+  } catch (error) {
+    console.error('Error in getAllExpenses:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching all expenses',
+      error: error.message
+    });
+  }
+});
+
 // @desc    Get expense statistics
 // @route   GET /api/expenses/stats
 // @access  Private

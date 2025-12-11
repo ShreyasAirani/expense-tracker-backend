@@ -6,7 +6,8 @@ import {
   updateExpense,
   deleteExpense,
   getExpenseStats,
-  getExpensesGroupedByDate
+  getExpensesGroupedByDate,
+  getAllExpenses
 } from '../controllers/expenseController.js';
 import { authenticateToken } from '../middleware/auth.js';
 
@@ -25,6 +26,9 @@ router.route('/stats')
 
 router.route('/grouped-by-date')
   .get(getExpensesGroupedByDate);
+
+router.route('/all')
+  .get(getAllExpenses);
 
 router.route('/:id')
   .get(getExpense)
